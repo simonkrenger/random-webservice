@@ -1,16 +1,22 @@
-FROM golang:1.12 AS builder
-WORKDIR $GOPATH/src/simonkrenger/random-webservice/
+FROM registry.fedoraproject.org/fedora-minimal:latest as build
+LABEL maintainer="Simon Krenger <simon@krenger.ch>"
+
+WORKDIR /go/src/github.com/simonkrenger/random-webservice
+RUN microdnf install golang && go get github.com/gin-gonic/gin
 COPY random.go .
 
-# Needed to compile static binary
-ENV CGO_ENABLED 0
-
-RUN go get
-RUN go build -o /go/bin/random-webservice .
-
-# Runtime
+# http://blog.wrouesnel.com/articles/Totally%20static%20Go%20builds/
+RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' .
 
 FROM scratch
-COPY --from=builder /go/bin/random-webservice /go/bin/random-webservice
+LABEL maintainer="Simon Krenger <simon@krenger.ch>"
+LABEL description="A small container with a web service that returns a random number"
+
+WORKDIR /
+COPY --from=0 /go/src/github.com/simonkrenger/random-webservice/random-webservice .
+
+EXPOSE 8080
+USER 1001
 ENV GIN_MODE release
-ENTRYPOINT ["/go/bin/random-webservice"]
+
+ENTRYPOINT ["/random-webservice"]
